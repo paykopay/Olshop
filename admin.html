@@ -1,0 +1,195 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Admin — IRMASYARIFUDDIN</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="admin-panel">
+    <header style="display:flex;align-items:center;justify-content:space-between;">
+      <div>
+        <h2 style="margin:0">Admin Panel — IRMASYARIFUDDIN</h2>
+        <div class="small" style="margin-top:6px">Kelola produk: tambah / edit / hapus (data disimpan di localStorage)</div>
+      </div>
+      <div>
+        <input id="loginPass" type="password" placeholder="Password admin" style="padding:8px;border-radius:8px;border:1px solid rgba(255,255,255,0.06);background:transparent;color:inherit" />
+        <button id="btnLogin" class="btn" style="margin-left:8px">Login</button>
+        <button id="btnLogout" class="btn" style="margin-left:8px;display:none;background:#666">Logout</button>
+      </div>
+    </header>
+
+    <div id="adminArea" style="margin-top:16px;display:none">
+      <div class="admin-grid">
+        <div class="table">
+          <div style="display:flex;justify-content:space-between;align-items:center">
+            <h3 style="margin:0">Daftar Produk</h3>
+            <div>
+              <button id="btnReload" class="btn">Reload</button>
+              <button id="btnAdd" class="btn" style="margin-left:8px">Tambah Baru</button>
+            </div>
+          </div>
+
+          <div style="margin-top:10px" class="table-list">
+            <table>
+              <thead><tr><th>Gambar</th><th>Nama</th><th>Kategori</th><th>Harga</th><th>Aksi</th></tr></thead>
+              <tbody id="productsTable"></tbody>
+            </table>
+          </div>
+        </div>
+
+        <div class="form-card">
+          <h4 style="margin:0">Form Produk</h4>
+          <div style="margin-top:8px">
+            <label class="small">Gambar (URL)</label>
+            <input id="f_img" placeholder="https://example.com/img.jpg" />
+            <div class="img-preview" id="imgPreview"></div>
+
+            <label class="small" style="margin-top:8px">Nama</label>
+            <input id="f_name" placeholder="Nama produk" />
+
+            <label class="small">Kategori</label>
+            <input id="f_cat" placeholder="Kategori" />
+
+            <label class="small">Harga (angka)</label>
+            <input id="f_price" type="number" placeholder="100000" />
+
+            <label class="small">Deskripsi</label>
+            <textarea id="f_desc" rows="3" placeholder="Deskripsi singkat"></textarea>
+
+            <div style="display:flex;gap:8px;margin-top:10px">
+              <button id="saveBtn" class="btn">Simpan</button>
+              <button id="cancelBtn" class="btn" style="background:#666;display:none">Batal</button>
+              <button id="delBtn" class="btn" style="margin-left:auto;background:linear-gradient(90deg,#ff7a7a,#ff5252)">Hapus</button>
+            </div>
+            <div id="formMsg" class="small" style="margin-top:8px;color:var(--muted)"></div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+<script>
+const PRODUCTS_KEY = 'irm_products';
+const ADMIN_PASS = 'admin123'; // change if perlu
+let editingId = null;
+
+/* elements */
+const loginPass = document.getElementById('loginPass');
+const btnLogin = document.getElementById('btnLogin');
+const btnLogout = document.getElementById('btnLogout');
+const adminArea = document.getElementById('adminArea');
+const productsTable = document.getElementById('productsTable');
+const btnReload = document.getElementById('btnReload');
+const btnAdd = document.getElementById('btnAdd');
+
+const f_img = document.getElementById('f_img');
+const imgPreview = document.getElementById('imgPreview');
+const f_name = document.getElementById('f_name');
+const f_cat = document.getElementById('f_cat');
+const f_price = document.getElementById('f_price');
+const f_desc = document.getElementById('f_desc');
+const saveBtn = document.getElementById('saveBtn');
+const cancelBtn = document.getElementById('cancelBtn');
+const delBtn = document.getElementById('delBtn');
+const formMsg = document.getElementById('formMsg');
+
+function getProducts(){ try{ const raw = localStorage.getItem(PRODUCTS_KEY); return raw ? JSON.parse(raw) : []; }catch(e){ return []; } }
+function saveProducts(list){ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(list)); localStorage.setItem('last_update', Date.now()); }
+
+function ensureDefaults(){
+  if(!localStorage.getItem(PRODUCTS_KEY)){
+    const defaults = [
+      { id:1, name:'Kaos IRMA - Putih', price:95000, category:'Pakaian', desc:'Kaos katun nyaman', img:'https://i.imgur.com/ABo5Mhk.jpeg' },
+      { id:2, name:'Hoodie IRMA - Hitam', price:180000, category:'Pakaian', desc:'Hoodie tebal', img:'https://picsum.photos/seed/hoodie/600/400' }
+    ];
+    saveProducts(defaults);
+  }
+}
+
+/* login */
+btnLogin.addEventListener('click', ()=>{
+  if(loginPass.value === ADMIN_PASS){ loginSuccess(); } else { alert('Password salah'); }
+});
+btnLogout.addEventListener('click', ()=>{ logout(); });
+
+function loginSuccess(){
+  adminArea.style.display = 'block'; btnLogin.style.display='none'; btnLogout.style.display='inline-block'; loginPass.style.display='none';
+  loadTable();
+}
+function logout(){ adminArea.style.display='none'; btnLogin.style.display='inline-block'; btnLogout.style.display='none'; loginPass.style.display='inline-block'; loginPass.value=''; }
+
+/* load table */
+function loadTable(){
+  const list = getProducts();
+  productsTable.innerHTML = '';
+  list.forEach(p=>{
+    const tr = document.createElement('tr');
+    tr.innerHTML = `<td style="width:110px"><div style="width:100px;height:60px;background-image:url('${p.img}');background-size:cover;background-position:center;border-radius:6px"></div></td>
+      <td>${p.name}</td><td>${p.category}</td><td>${Number(p.price).toLocaleString()}</td>
+      <td><button class="btn" onclick="editProduct(${p.id})">Edit</button>
+      <button class="btn" style="margin-left:6px;background:#666" onclick="duplicateProduct(${p.id})">Duplikat</button></td>`;
+    productsTable.appendChild(tr);
+  });
+}
+
+/* form actions */
+btnAdd.addEventListener('click', ()=>{ clearForm(); editingId = null; cancelBtn.style.display='none'; delBtn.style.display='none'; });
+f_img.addEventListener('input', ()=>{ imgPreview.style.backgroundImage = f_img.value ? `url('${f_img.value}')` : ''; });
+
+saveBtn.addEventListener('click', ()=>{
+  const name = f_name.value.trim();
+  const cat = f_cat.value.trim() || 'Umum';
+  const price = Number(f_price.value) || 0;
+  const img = f_img.value.trim() || '';
+  const desc = f_desc.value.trim() || '';
+  if(!name){ formMsg.textContent = 'Nama produk wajib'; return; }
+  let list = getProducts();
+  if(editingId){
+    const idx = list.findIndex(x=>x.id === editingId);
+    if(idx >= 0){
+      list[idx] = { id: editingId, name, category:cat, price, img, desc };
+      saveProducts(list); formMsg.textContent = 'Produk diperbarui'; loadTable();
+    }
+  } else {
+    const newid = Math.floor(Date.now()/1000);
+    list.push({ id: newid, name, category:cat, price, img, desc });
+    saveProducts(list); formMsg.textContent = 'Produk ditambahkan'; loadTable(); clearForm();
+  }
+});
+
+cancelBtn.addEventListener('click', ()=>{ clearForm(); editingId = null; cancelBtn.style.display='none'; delBtn.style.display='none'; });
+
+delBtn.addEventListener('click', ()=>{
+  if(!editingId) return;
+  if(!confirm('Yakin hapus?')) return;
+  let list = getProducts(); list = list.filter(x=>x.id !== editingId); saveProducts(list); loadTable(); clearForm();
+  editingId = null; cancelBtn.style.display='none'; delBtn.style.display='none';
+});
+
+window.editProduct = function(id){
+  const list = getProducts(); const p = list.find(x=>x.id===id); if(!p) return;
+  editingId = id; f_img.value = p.img || ''; imgPreview.style.backgroundImage = p.img ? `url('${p.img}')` : ''; f_name.value = p.name; f_cat.value = p.category; f_price.value = p.price; f_desc.value = p.desc;
+  cancelBtn.style.display='inline-block'; delBtn.style.display='inline-block'; formMsg.textContent=''; window.scrollTo({ top: 0, behavior:'smooth' });
+};
+
+window.duplicateProduct = function(id){
+  const list = getProducts(); const p = list.find(x=>x.id===id); if(!p) return;
+  const newid = Math.floor(Date.now()/1000);
+  list.push({ id: newid, name: p.name + ' (copy)', category: p.category, price: p.price, img: p.img, desc: p.desc });
+  saveProducts(list); loadTable();
+};
+
+function clearForm(){ f_img.value=''; imgPreview.style.backgroundImage=''; f_name.value=''; f_cat.value=''; f_price.value=''; f_desc.value=''; formMsg.textContent=''; }
+
+/* helpers */
+btnReload.addEventListener('click', ()=> loadTable());
+
+/* init */
+ensureDefaults();
+loadTable();
+
+</script>
+</body>
+</html>

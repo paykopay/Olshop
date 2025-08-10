@@ -1,0 +1,271 @@
+<!doctype html>
+<html lang="id">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>IRMASYARIFUDDIN — Toko Online</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="container">
+    <header class="header">
+      <div class="brand">
+        <div class="logo">IR</div>
+        <div>
+          <h2 class="title">IRMASYARIFUDDIN</h2>
+          <div class="subtitle">Belanja aman & cepat — Checkout via WhatsApp</div>
+        </div>
+      </div>
+
+      <div class="controls">
+        <div class="search" role="search" aria-label="Cari produk">
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden style="opacity:.7"><path d="M21 21l-4.35-4.35" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></path><circle cx="11" cy="11" r="6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"></circle></svg>
+          <input id="searchInput" placeholder="Cari produk..." />
+        </div>
+        <select id="sortSelect" class="select" title="Urutkan">
+          <option value="default">Urutkan</option>
+          <option value="low">Harga: Rendah → Tinggi</option>
+          <option value="high">Harga: Tinggi → Rendah</option>
+          <option value="az">A → Z</option>
+        </select>
+        <button id="adminOpen" class="icon-btn">Admin</button>
+        <button id="cartToggle" class="btn-primary">Keranjang (0)</button>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="panel">
+        <h3>Filter</h3>
+        <div>
+          <div class="small">Kategori</div>
+          <div class="chips" id="categories"></div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Harga (max)</div>
+          <div style="margin-top:8px">
+            <input id="priceRange" type="range" min="0" max="1000000" step="5000" value="1000000" />
+            <div style="display:flex;justify-content:space-between;color:var(--muted);font-size:13px;margin-top:6px"><span>Rp 0</span><span id="priceLabel">Rp 1.000.000</span></div>
+          </div>
+        </div>
+
+        <div style="margin-top:12px">
+          <div class="small">Kontak</div>
+          <div class="small" style="margin-top:6px">WhatsApp: <strong>+62 881-0367-25837</strong><br>Email: <strong>irmasyarifuddin@example.com</strong></div>
+        </div>
+      </aside>
+
+      <main>
+        <div class="toolbar">
+          <h2 style="margin:0">Produk</h2>
+          <div id="resultsInfo" class="small"></div>
+        </div>
+
+        <section id="productGrid" class="grid"></section>
+      </main>
+    </div>
+
+    <footer style="text-align:center;margin-top:18px;color:var(--muted)">&copy; <span id="year"></span> IRMASYARIFUDDIN</footer>
+  </div>
+
+  <!-- FAB + Drawer -->
+  <div class="fab"><button id="cartFab">Keranjang (0)</button></div>
+  <div id="drawer" class="drawer" aria-hidden="true">
+    <div style="display:flex;justify-content:space-between;align-items:center">
+      <h4 style="margin:0">Keranjang Anda</h4>
+      <div style="display:flex;gap:8px;align-items:center">
+        <button id="clearCartBtn" class="icon-btn">Bersihkan</button>
+        <button id="closeDrawer" class="icon-btn">Tutup</button>
+      </div>
+    </div>
+
+    <div class="cart-list" id="cartList"></div>
+
+    <div class="totals">
+      <div><div class="small">Subtotal</div><div id="subtotal" style="font-weight:800;font-size:18px">Rp 0</div></div>
+      <div><button id="checkoutBtn" class="btn-primary">Checkout (WhatsApp)</button></div>
+    </div>
+  </div>
+
+  <!-- Modal checkout -->
+  <div id="modal" class="modal-backdrop">
+    <div class="modal" role="dialog" aria-modal="true">
+      <h3 style="margin-top:0">Checkout — Isi data pengiriman</h3>
+      <input id="c_name" placeholder="Nama penerima" />
+      <input id="c_phone" placeholder="No. HP (contoh: 0812xxxx)" />
+      <textarea id="c_address" rows="3" placeholder="Alamat lengkap"></textarea>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:8px">
+        <button id="cancelCheckout" class="icon-btn">Batal</button>
+        <button id="confirmCheckout" class="btn-primary">Kirim ke WhatsApp</button>
+      </div>
+    </div>
+  </div>
+
+<script>
+/* index.js inline - reads products from localStorage key 'irm_products' */
+const PRODUCTS_KEY = 'irm_products';
+const CART_KEY = 'irm_cart';
+const WA_NUMBER = '62881036725837';
+
+// defaults if not present
+const DEFAULT_PRODUCTS = [
+  { id:1, name:'Kaos IRMA - Putih', price:95000, category:'Pakaian', desc:'Kaos katun nyaman', img:'https://i.imgur.com/ABo5Mhk.jpeg' },
+  { id:2, name:'Hoodie IRMA - Hitam', price:180000, category:'Pakaian', desc:'Hoodie tebal', img:'https://picsum.photos/seed/hoodie/600/400' },
+  { id:3, name:'Topi Bordir IRMA', price:65000, category:'Aksesoris', desc:'Topi snapback', img:'https://picsum.photos/seed/topi/600/400' },
+];
+
+function getProductsFromStorage(){
+  try{
+    const raw = localStorage.getItem(PRODUCTS_KEY);
+    if(!raw){ localStorage.setItem(PRODUCTS_KEY, JSON.stringify(DEFAULT_PRODUCTS)); return DEFAULT_PRODUCTS.slice(); }
+    return JSON.parse(raw);
+  }catch(e){ return DEFAULT_PRODUCTS.slice(); }
+}
+function saveCart(cart){ localStorage.setItem(CART_KEY, JSON.stringify(cart)); }
+function loadCart(){ try{ return JSON.parse(localStorage.getItem(CART_KEY)) || {}; }catch(e){ return {}; } }
+
+let PRODUCTS = getProductsFromStorage();
+let STATE = { query:'', category:'Semua', maxPrice:1000000, sort:'default', cart: loadCart() };
+
+function formatRupiah(n){ if(!n && n!==0) return 'Rp 0'; return 'Rp ' + n.toString().replace(/\B(?=(\d{3})+(?!\d))/g,'.'); }
+function getCategories(){ const cats = Array.from(new Set(PRODUCTS.map(p=>p.category))); return ['Semua', ...cats]; }
+function renderCategories(){ const wrap = document.getElementById('categories'); wrap.innerHTML=''; getCategories().forEach(cat=>{ const btn = document.createElement('button'); btn.className='chip' + (STATE.category===cat? ' active':''); btn.textContent = cat; btn.onclick = ()=>{ STATE.category = cat; renderCategories(); renderProducts(); }; wrap.appendChild(btn); }); }
+
+function filterAndSort(){
+  let list = PRODUCTS.filter(p => p.price <= STATE.maxPrice );
+  if(STATE.category !== 'Semua') list = list.filter(p => p.category === STATE.category);
+  if(STATE.query) list = list.filter(p => (p.name + ' ' + p.desc).toLowerCase().includes(STATE.query.toLowerCase()));
+  if(STATE.sort === 'low') list.sort((a,b)=>a.price-b.price);
+  if(STATE.sort === 'high') list.sort((a,b)=>b.price-a.price);
+  if(STATE.sort === 'az') list.sort((a,b)=>a.name.localeCompare(b.name));
+  return list;
+}
+
+function renderProducts(){
+  const grid = document.getElementById('productGrid'); grid.innerHTML = '';
+  const list = filterAndSort();
+  document.getElementById('resultsInfo').textContent = `${list.length} produk ditemukan`;
+  list.forEach((p,i)=>{
+    const el = document.createElement('article'); el.className='card';
+    el.innerHTML = `
+      <div class="img" style="background-image:url('${p.img}')"></div>
+      <h3 class="title-card">${p.name}</h3>
+      <p class="desc">${p.desc}</p>
+      <div style="display:flex;justify-content:space-between;align-items:center">
+        <div class="price">${formatRupiah(p.price)}</div>
+        <div style="display:flex;gap:8px">
+          <button class="icon-btn" onclick="openQuick(${p.id})">Lihat</button>
+          <button class="btn-primary" onclick="addToCart(${p.id})">Tambah</button>
+        </div>
+      </div>
+    `;
+    grid.appendChild(el);
+  });
+  // appear animation
+  setTimeout(()=>document.querySelectorAll('.card').forEach((c,idx)=>setTimeout(()=>c.classList.add('show'), idx*40)), 80);
+}
+
+function openQuick(id){ const p = PRODUCTS.find(x=>x.id===id); if(!p) return; alert(`${p.name}\n\n${p.desc}\nHarga: ${formatRupiah(p.price)}`); }
+
+/* CART */
+function addToCart(id, qty=1){
+  const key = String(id);
+  if(!STATE.cart[key]) STATE.cart[key] = { id, qty:0 };
+  STATE.cart[key].qty += qty; saveCart(STATE.cart); renderCartBadge(); showToast('Ditambahkan ke keranjang');
+}
+function updateQty(id, qty){
+  const key = String(id);
+  if(qty <= 0) delete STATE.cart[key]; else STATE.cart[key].qty = qty;
+  saveCart(STATE.cart); renderCart();
+}
+function removeItem(id){ delete STATE.cart[String(id)]; saveCart(STATE.cart); renderCart(); }
+function clearCart(){ if(confirm('Kosongkan keranjang?')){ STATE.cart = {}; saveCart(STATE.cart); renderCart(); } }
+function renderCart(){
+  const wrap = document.getElementById('cartList'); wrap.innerHTML = '';
+  const keys = Object.keys(STATE.cart);
+  if(keys.length === 0){ wrap.innerHTML = '<div style="color:var(--muted);padding:8px">Keranjang kosong</div>'; document.getElementById('subtotal').textContent = formatRupiah(0); return; }
+  let total = 0;
+  keys.forEach(k=>{
+    const item = STATE.cart[k]; const p = PRODUCTS.find(x=>x.id===item.id); if(!p) return;
+    total += p.price * item.qty;
+    const row = document.createElement('div'); row.className='cart-item';
+    row.innerHTML = `
+      <div class="thumb" style="background-image:url('${p.img}')"></div>
+      <div style="flex:1">
+        <div style="font-weight:700">${p.name}</div>
+        <div style="color:var(--muted);font-size:13px">${formatRupiah(p.price)} x ${item.qty} = ${formatRupiah(p.price*item.qty)}</div>
+      </div>
+      <div class="qty">
+        <button onclick="updateQty(${p.id}, ${item.qty - 1})">-</button>
+        <div style="min-width:22px;text-align:center">${item.qty}</div>
+        <button onclick="updateQty(${p.id}, ${item.qty + 1})">+</button>
+        <button style="margin-left:8px" onclick="removeItem(${p.id})">×</button>
+      </div>
+    `;
+    wrap.appendChild(row);
+  });
+  document.getElementById('subtotal').textContent = formatRupiah(total);
+  renderCartBadge();
+}
+function renderCartBadge(){ const count = Object.values(STATE.cart).reduce((s,i)=>s+(i.qty||0),0); document.getElementById('cartToggle').textContent = `Keranjang (${count})`; document.getElementById('cartFab').textContent = `Keranjang (${count})`; document.getElementById('cartFab').style.display='inline-block'; }
+
+/* Checkout to WA */
+function openCheckoutModal(){ const keys = Object.keys(STATE.cart); if(keys.length===0){ alert('Keranjang kosong'); return; } document.getElementById('modal').style.display = 'flex'; }
+function closeCheckoutModal(){ document.getElementById('modal').style.display = 'none'; }
+function confirmCheckout(){
+  const name = document.getElementById('c_name').value.trim();
+  const phone = document.getElementById('c_phone').value.trim();
+  const address = document.getElementById('c_address').value.trim();
+  let message = 'Halo, saya ingin memesan:%0A';
+  Object.values(STATE.cart).forEach(item=>{
+    const p = PRODUCTS.find(x=>x.id===item.id); if(!p) return;
+    message += `- ${p.name} x ${item.qty} = ${formatRupiah(p.price*item.qty)}%0A`;
+  });
+  const total = Object.values(STATE.cart).reduce((s,i)=>{ const p = PRODUCTS.find(x=>x.id===i.id); return s + (p? p.price * i.qty : 0); }, 0);
+  message += `%0ATotal: ${formatRupiah(total)}%0A%0ANama: ${name || '[isi nama]'}%0ANo HP: ${phone || '[isi no hp]'}%0AAlamat: ${address || '[isi alamat]'}`;
+  window.open(`https://wa.me/${WA_NUMBER}?text=${encodeURIComponent(message)}`, '_blank');
+  closeCheckoutModal();
+}
+
+/* UI wiring */
+document.getElementById('searchInput').addEventListener('input', e=>{ STATE.query = e.target.value; renderProducts(); });
+document.getElementById('sortSelect').addEventListener('change', e=>{ STATE.sort = e.target.value; renderProducts(); });
+document.getElementById('priceRange').addEventListener('input', e=>{ STATE.maxPrice = Number(e.target.value); document.getElementById('priceLabel').textContent = formatRupiah(STATE.maxPrice); renderProducts(); });
+document.getElementById('cartToggle').addEventListener('click', ()=> toggleDrawer(true));
+document.getElementById('cartFab').addEventListener('click', ()=> toggleDrawer(true));
+document.getElementById('closeDrawer').addEventListener('click', ()=> toggleDrawer(false));
+document.getElementById('clearCartBtn').addEventListener('click', clearCart);
+document.getElementById('checkoutBtn').addEventListener('click', openCheckoutModal);
+document.getElementById('cancelCheckout').addEventListener('click', closeCheckoutModal);
+document.getElementById('confirmCheckout').addEventListener('click', confirmCheckout);
+document.getElementById('adminOpen').addEventListener('click', ()=> window.open('admin.html', '_blank'));
+
+/* drawer toggle */
+function toggleDrawer(open){ const el = document.getElementById('drawer'); el.style.display = open ? 'block' : 'none'; if(open) renderCart(); }
+
+/* toast */
+function showToast(msg){ const t = document.createElement('div'); t.textContent = msg; Object.assign(t.style,{position:'fixed',left:'50%',transform:'translateX(-50%)',bottom:'30px',background:'rgba(0,0,0,0.6)',padding:'8px 12px',borderRadius:'8px',color:'#fff',zIndex:9999}); document.body.appendChild(t); setTimeout(()=>{ t.style.transition='all .35s'; t.style.opacity='0'; t.style.transform='translateX(-50%) translateY(14px)'; setTimeout(()=>t.remove(),350); },1200); }
+
+/* reload products (when admin updates) via storage event */
+window.addEventListener('storage', (e)=>{
+  if(e.key === 'irm_products' || e.key === 'last_update'){
+    PRODUCTS = getProductsFromStorage();
+    renderCategories();
+    renderProducts();
+  }
+});
+
+/* initial */
+function init(){
+  PRODUCTS = getProductsFromStorage();
+  renderCategories();
+  renderProducts();
+  renderCartBadge();
+  document.getElementById('year').textContent = new Date().getFullYear();
+  document.getElementById('priceLabel').textContent = formatRupiah(STATE.maxPrice);
+}
+init();
+
+</script>
+</body>
+</html>
